@@ -29,4 +29,5 @@ export default defineConfig({
       ignored: ['**/node_modules/**', '**/dist/**', '**/public/**', '**/log/**']
     }
   },
+  base: "/ChatManageR/",
 })

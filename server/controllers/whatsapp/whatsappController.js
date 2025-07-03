@@ -1,4 +1,5 @@
-const WhatsAppConnection = require('../models/WhatsAppConnection');
+const WhatsAppConnection = require('../../models/WhatsAppConnection');
+const whatsappService = require('../../services/whatsappService');
 
 const getWhatsAppConnections = async (req, res) => {
   try {
@@ -58,8 +59,21 @@ const updateWhatsAppConnection = async (req, res) => {
 const connectWhatsAppConnection = async (req, res) => {
   try {
     const { connectionId } = req.params;
-    // TODO: Implement WhatsApp connection logic
-    res.status(200).json({ success: true, message: 'Not implemented' });
+    const userId = req.user.id;
+    const io = req.app.get('socketio');
+
+    const connection = await WhatsAppConnection.findOne({ _id: connectionId, userId });
+
+    if (!connection) {
+      return res.status(404).json({ message: 'Connection not found' });
+    }
+
+    whatsappService.createClient(userId);
+    whatsappService.initializeClient(userId, io);
+
+    await WhatsAppConnection.findByIdAndUpdate(connectionId, { status: 'connecting' });
+
+    res.status(200).json({ success: true, message: 'WhatsApp connection process started.' });
   } catch (error) {
     console.error('Error connecting WhatsApp connection:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -69,8 +83,13 @@ const connectWhatsAppConnection = async (req, res) => {
 const disconnectWhatsAppConnection = async (req, res) => {
   try {
     const { connectionId } = req.params;
-    // TODO: Implement WhatsApp disconnection logic
-    res.status(200).json({ success: true, message: 'Not implemented' });
+    const userId = req.user.id;
+
+    await whatsappService.destroyClient(userId);
+
+    await WhatsAppConnection.findByIdAndUpdate(connectionId, { status: 'disconnected' });
+
+    res.status(200).json({ success: true, message: 'WhatsApp connection disconnected.' });
   } catch (error) {
     console.error('Error disconnecting WhatsApp connection:', error);
     res.status(500).json({ message: 'Internal server error' });
