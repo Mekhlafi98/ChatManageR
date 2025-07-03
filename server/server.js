@@ -11,8 +11,10 @@ const authRoutes = require("./routes/authRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const whatsappRoutes = require("./routes/whatsappRoutes");
-const { connectDB } = require("./config/database");
+// const { connectDB } = require("./config/database");
 const cors = require("cors");
+
+const connectDB = require("./config/connectDB");
 
 if (!process.env.DATABASE_URL) {
   console.error("Error: DATABASE_URL variables in .env missing.");
@@ -41,6 +43,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Database connection
 connectDB();
+
 
 app.on("error", (error) => {
   console.error(`Server error: ${error.message}`);
