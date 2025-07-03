@@ -1,5 +1,7 @@
 // Load environment variables
 require("dotenv").config();
+const http = require('http');
+const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const express = require("express");
 const session = require("express-session");
@@ -18,6 +20,15 @@ if (!process.env.DATABASE_URL) {
 }
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  }
+});
+
+app.set('socketio', io);
+
 const port = process.env.PORT || 3000;
 // Pretty-print JSON responses
 app.enable('json spaces');
@@ -34,6 +45,13 @@ connectDB();
 app.on("error", (error) => {
   console.error(`Server error: ${error.message}`);
   console.error(error.stack);
+});
+
+io.on('connection', (socket) => {
+  console.log('a user connected');
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
 });
 
 // Basic Routes
@@ -56,6 +74,6 @@ app.use((err, req, res, next) => {
   res.status(500).send("There was an error serving your request.");
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
