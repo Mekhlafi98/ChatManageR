@@ -3,6 +3,7 @@ import { ThemeProvider } from "./components/ui/theme-provider"
 import { Toaster } from "./components/ui/toaster"
 import { AuthProvider } from "./contexts/AuthContext"
 import { LanguageProvider } from "./contexts/LanguageContext"
+import { SocketProvider } from "./contexts/SocketContext"
 import { Login } from "./pages/Login"
 import { Register } from "./pages/Register"
 import { Dashboard } from "./pages/Dashboard"
@@ -15,7 +16,7 @@ import { cn } from "./lib/utils"
 
 function AppContent() {
   const { isRTL } = useLanguage();
-  
+
   return (
     <div className={cn("min-h-screen", isRTL && "rtl")} dir={isRTL ? "rtl" : "ltr"}>
       <Router>
@@ -39,9 +40,11 @@ function App() {
   return (
     <AuthProvider>
       <LanguageProvider>
-        <ThemeProvider defaultTheme="light" storageKey="ui-theme">
-          <AppContent />
-        </ThemeProvider>
+        <SocketProvider>
+          <ThemeProvider defaultTheme="light" storageKey="ui-theme">
+            <AppContent />
+          </ThemeProvider>
+        </SocketProvider>
       </LanguageProvider>
     </AuthProvider>
   )

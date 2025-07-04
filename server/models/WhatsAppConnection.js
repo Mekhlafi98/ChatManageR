@@ -13,7 +13,7 @@ const whatsAppConnectionSchema = new mongoose.Schema({
   qrCode: String,
   sessionStatus: {
     type: String,
-    enum: ['disconnected', 'connecting', 'connected', 'qr_required'],
+    enum: ['disconnected', 'connecting', 'connected', 'qr_required', 'CONNECTED', 'CONNECTING', 'DISCONNECTED'],
     default: 'disconnected',
   },
   lastConnected: Date,

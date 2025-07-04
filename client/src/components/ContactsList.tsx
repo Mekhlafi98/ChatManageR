@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Contact, getContacts, syncContacts, searchContacts } from '@/api/contacts';
+import { Contact, getContacts, syncContacts, searchContacts, createContact, checkContactExists } from '@/api/contacts';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -119,41 +119,68 @@ export const ContactsList: React.FC<ContactsListProps> = ({
       return;
     }
 
+    if (!validatePhoneNumber(newPhoneNumber)) {
+      toast({
+        title: t('common.error'),
+        description: 'Please enter a valid phone number with country code',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setAddingContact(true);
-      
-      // Create a new contact object
-      const newContact: Contact = {
-        _id: Date.now().toString(),
+
+      // Check if contact already exists
+      const checkResponse = await checkContactExists(newPhoneNumber.trim());
+      if (checkResponse.exists) {
+        toast({
+          title: t('common.error'),
+          description: 'A contact with this phone number already exists. Please use a different number.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create contact via API to get proper MongoDB ObjectId
+      const response = await createContact({
         name: newContactName.trim() || newPhoneNumber,
         phone: newPhoneNumber.trim(),
-        unreadCount: 0,
-        isOnline: false,
         tags: ['manual']
-      };
+      });
 
       // Add to contacts list
-      setContacts(prev => [newContact, ...prev]);
-      
+      setContacts(prev => [response.contact, ...prev]);
+
       // Select the new contact
-      onContactSelect(newContact);
-      
+      onContactSelect(response.contact);
+
       // Reset form
       setNewPhoneNumber('');
       setNewContactName('');
       setShowAddNumberDialog(false);
-      
+
       toast({
         title: t('common.success'),
         description: 'Contact added successfully',
       });
     } catch (error: any) {
       console.error('Error adding contact:', error);
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
-      });
+
+      // Handle specific error cases
+      if (error.message.includes('already exists')) {
+        toast({
+          title: t('common.error'),
+          description: 'A contact with this phone number already exists. Please use a different number.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: t('common.error'),
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setAddingContact(false);
     }
@@ -240,7 +267,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
             <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
           </Button>
         </div>
-        
+
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -250,7 +277,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
           >
             {syncing ? t('common.loading') : t('contacts.syncContacts')}
           </Button>
-          
+
           <Dialog open={showAddNumberDialog} onOpenChange={setShowAddNumberDialog}>
             <DialogTrigger asChild>
               <Button
@@ -403,7 +430,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                       <Circle className="w-2 h-2 fill-current" />
                       {contact.isOnline ? t('contacts.online') :
                         contact.lastSeen ? `${t('contacts.lastSeen')} ${formatTime(contact.lastSeen)}` :
-                        t('contacts.offline')
+                          t('contacts.offline')
                       }
                     </span>
                   </div>

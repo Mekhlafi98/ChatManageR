@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useSocket } from '@/contexts/SocketContext';
 import { getWhatsAppConnections, connectWhatsAppConnection, WhatsAppConnection } from '@/api/whatsapp';
 import { DashboardSidebar } from '@/components/DashboardSidebar';
 import { Button } from '@/components/ui/button';
@@ -15,11 +16,13 @@ export const QRCode: React.FC = () => {
   const { connectionId } = useParams<{ connectionId: string }>();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
+  const { socket, isConnected } = useSocket();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [connection, setConnection] = useState<WhatsAppConnection | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (connectionId) {
@@ -27,15 +30,67 @@ export const QRCode: React.FC = () => {
     }
   }, [connectionId]);
 
+  // Listen for Socket.IO events
+  useEffect(() => {
+    if (!socket || !connection) return;
+
+    const handleQRCode = (data: any) => {
+      console.log('QR Code received via Socket.IO:', data);
+      if (data.sessionId === connection.name) {
+        setQrCode(data.qr);
+        toast({
+          title: t('common.success'),
+          description: 'QR Code received successfully',
+        });
+      }
+    };
+
+    const handleStateChange = (data: any) => {
+      console.log('State change received via Socket.IO:', data);
+      if (data.sessionId === connection.name) {
+        if (data.state === 'CONNECTED') {
+          setConnection(prev => prev ? { ...prev, sessionStatus: 'connected' } : null);
+          toast({
+            title: t('common.success'),
+            description: 'WhatsApp connected successfully!',
+          });
+          // Navigate to dashboard after successful connection
+          setTimeout(() => navigate('/'), 2000);
+        } else if (data.state === 'QRCODE') {
+          setConnection(prev => prev ? { ...prev, sessionStatus: 'qr_required' } : null);
+        }
+      }
+    };
+
+    const handleStatusFind = (data: any) => {
+      console.log('Status find received via Socket.IO:', data);
+      if (data.sessionId === connection.name) {
+        // Handle status updates
+      }
+    };
+
+    // Listen for events
+    socket.on('qr_code', handleQRCode);
+    socket.on('state_change', handleStateChange);
+    socket.on('status_find', handleStatusFind);
+
+    // Cleanup listeners
+    return () => {
+      socket.off('qr_code', handleQRCode);
+      socket.off('state_change', handleStateChange);
+      socket.off('status_find', handleStatusFind);
+    };
+  }, [socket, connection, toast, t, navigate]);
+
   const loadConnection = async () => {
     try {
       setLoading(true);
       const response = await getWhatsAppConnections();
       const foundConnection = response.connections.find(c => c._id === connectionId);
-      
+
       if (foundConnection) {
         setConnection(foundConnection);
-        
+
         // If connection doesn't have QR code but needs one, generate it
         if (foundConnection.sessionStatus === 'qr_required' && !foundConnection.qrCode) {
           await handleRefreshQR();
@@ -65,14 +120,15 @@ export const QRCode: React.FC = () => {
 
     try {
       setRefreshing(true);
+      setQrCode(null); // Clear existing QR code
       const response = await connectWhatsAppConnection(connection._id);
-      
-      if (response.success && response.qrCode) {
-        setConnection(prev => prev ? { ...prev, qrCode: response.qrCode } : null);
+
+      if (response.success) {
         toast({
           title: t('common.success'),
-          description: 'QR Code refreshed successfully',
+          description: 'QR Code generation started. Please wait...',
         });
+        // QR code will be received via Socket.IO
       }
     } catch (error: any) {
       console.error('Error refreshing QR code:', error);
@@ -118,7 +174,7 @@ export const QRCode: React.FC = () => {
   return (
     <div className={cn("h-screen flex", isRTL && "flex-row-reverse")}>
       <DashboardSidebar />
-      
+
       <div className="flex-1 overflow-y-auto bg-gradient-to-br from-background to-secondary/20">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
           {/* Header */}
@@ -152,17 +208,25 @@ export const QRCode: React.FC = () => {
                     {connection.phone || 'Phone number will appear after connection'}
                   </CardDescription>
                 </div>
-                <Badge 
-                  variant={connection.sessionStatus === 'connected' ? 'default' : 'secondary'}
-                  className="flex items-center gap-1"
-                >
-                  {connection.sessionStatus === 'connected' && (
-                    <CheckCircle className="w-3 h-3" />
-                  )}
-                  {connection.sessionStatus === 'connected' ? 'Connected' : 
-                   connection.sessionStatus === 'connecting' ? 'Connecting...' :
-                   connection.sessionStatus === 'qr_required' ? 'QR Code Required' : 'Disconnected'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={isConnected ? 'default' : 'destructive'}
+                    className="text-xs"
+                  >
+                    {isConnected ? 'Socket Connected' : 'Socket Disconnected'}
+                  </Badge>
+                  <Badge
+                    variant={connection.sessionStatus === 'connected' ? 'default' : 'secondary'}
+                    className="flex items-center gap-1"
+                  >
+                    {connection.sessionStatus === 'connected' && (
+                      <CheckCircle className="w-3 h-3" />
+                    )}
+                    {connection.sessionStatus === 'connected' ? 'Connected' :
+                      connection.sessionStatus === 'connecting' ? 'Connecting...' :
+                        connection.sessionStatus === 'qr_required' ? 'QR Code Required' : 'Disconnected'}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
           </Card>
@@ -176,7 +240,7 @@ export const QRCode: React.FC = () => {
                 <p className="text-muted-foreground text-center">
                   Your WhatsApp account "{connection.name}" is now connected and ready to use.
                 </p>
-                <Button 
+                <Button
                   onClick={() => navigate('/')}
                   className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
                 >
@@ -212,9 +276,9 @@ export const QRCode: React.FC = () => {
                 <div className="flex flex-col items-center space-y-6">
                   {/* QR Code */}
                   <div className="bg-white p-6 rounded-2xl shadow-lg border-4 border-green-100">
-                    {connection.qrCode ? (
+                    {qrCode ? (
                       <img
-                        src={connection.qrCode}
+                        src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
                         alt="WhatsApp QR Code"
                         className="w-64 h-64 rounded-lg"
                       />
@@ -222,7 +286,9 @@ export const QRCode: React.FC = () => {
                       <div className="w-64 h-64 bg-gray-100 rounded-lg flex items-center justify-center">
                         <div className="text-center space-y-2">
                           <QrCode className="w-12 h-12 mx-auto text-gray-400" />
-                          <p className="text-gray-500">Generating QR Code...</p>
+                          <p className="text-gray-500">
+                            {refreshing ? 'Generating QR Code...' : 'Waiting for QR Code...'}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -256,7 +322,7 @@ export const QRCode: React.FC = () => {
                   {/* Auto-refresh notice */}
                   <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-md">
                     <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
-                      <strong>Note:</strong> QR codes expire after a few minutes. 
+                      <strong>Note:</strong> QR codes expire after a few minutes.
                       If the code doesn't work, click "Refresh QR" to generate a new one.
                     </p>
                   </div>

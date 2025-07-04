@@ -6,7 +6,8 @@ const requireUser = async (req, res, next) => {
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'default-jwt-secret-change-in-production';
+    const decoded = jwt.verify(token, secret);
     const user = await UserService.get(decoded.sub);
     if (!user) {
       return res.status(401).json({ error: 'User not found' });

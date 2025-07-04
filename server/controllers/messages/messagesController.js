@@ -1,10 +1,16 @@
 // const Message = require('../models/Message');
 const Message = require('../../models/Message');
+const mongoose = require('mongoose');
 
 const getMessages = async (req, res) => {
   try {
     const { contactId } = req.params;
     const { page = 1, limit = 50 } = req.query;
+
+    // Validate contactId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+      return res.status(400).json({ message: 'Invalid contact ID format' });
+    }
 
     const messages = await Message.find({ contactId, userId: req.user.id })
       .sort({ timestamp: -1 })
@@ -24,6 +30,11 @@ const getMessages = async (req, res) => {
 const sendMessage = async (req, res) => {
   try {
     const { contactId, content, messageType = 'text' } = req.body;
+
+    // Validate contactId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+      return res.status(400).json({ message: 'Invalid contact ID format' });
+    }
 
     const message = new Message({
       contactId,
@@ -45,6 +56,11 @@ const sendMessage = async (req, res) => {
 const markMessagesAsRead = async (req, res) => {
   try {
     const { contactId, messageIds } = req.body;
+
+    // Validate contactId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+      return res.status(400).json({ message: 'Invalid contact ID format' });
+    }
 
     await Message.updateMany(
       { _id: { $in: messageIds }, contactId, userId: req.user.id },

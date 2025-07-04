@@ -27,6 +27,11 @@ export const Settings: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Debug dialog state changes
+  React.useEffect(() => {
+    console.log('Dialog state changed:', showCreateDialog);
+  }, [showCreateDialog]);
+
   useEffect(() => {
     loadWhatsAppConnections();
   }, []);
@@ -54,29 +59,49 @@ export const Settings: React.FC = () => {
     try {
       console.log('Creating new WhatsApp connection:', data);
       setCreating(true);
+
+      console.log('Making API call to createWhatsAppConnection...');
       const response = await createWhatsAppConnection(data);
+      console.log('API response:', response);
 
       if (response.success) {
+        console.log('Connection created successfully, showing toast...');
         toast({
           title: t('common.success'),
           description: response.message,
         });
+        console.log('Closing dialog...');
         setShowCreateDialog(false);
+        console.log('Reloading connections...');
         await loadWhatsAppConnections();
-        
+
         // Navigate to QR code page if QR is required
         if (response.connection.sessionStatus === 'qr_required') {
           navigate(`/qr/${response.connection._id}`);
         }
+      } else {
+        console.log('Response success is false:', response);
+        toast({
+          title: t('common.error'),
+          description: response.message || 'Failed to create connection',
+          variant: 'destructive',
+        });
       }
     } catch (error: any) {
       console.error('Error creating WhatsApp connection:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       toast({
         title: t('common.error'),
         description: error.message,
         variant: 'destructive',
       });
     } finally {
+      console.log('Setting creating to false...');
       setCreating(false);
     }
   };

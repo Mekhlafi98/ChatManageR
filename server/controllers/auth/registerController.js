@@ -1,5 +1,5 @@
 const User = require('../../models/User');
-const { hashPassword } = require('../../utils/password');
+const { generatePasswordHash } = require('../../utils/password');
 
 async function register(req, res) {
   try {
@@ -14,7 +14,7 @@ async function register(req, res) {
       return res.status(409).json({ message: 'Email already in use' });
     }
 
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await generatePasswordHash(password);
 
     const user = new User({
       email,

@@ -11,6 +11,52 @@ const getContacts = async (req, res) => {
   }
 };
 
+const createContact = async (req, res) => {
+  try {
+    const { name, phone, profilePicture, tags } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ message: 'Name and phone are required' });
+    }
+
+    // Check if contact already exists for this user
+    const existingContact = await Contact.findOne({
+      phone: phone,
+      userId: req.user.id
+    });
+
+    if (existingContact) {
+      return res.status(409).json({
+        message: 'A contact with this phone number already exists',
+        contact: existingContact
+      });
+    }
+
+    const contact = new Contact({
+      name,
+      phone,
+      profilePicture,
+      tags: tags || [],
+      userId: req.user.id,
+    });
+
+    await contact.save();
+
+    res.status(201).json({ success: true, contact });
+  } catch (error) {
+    console.error('Error creating contact:', error);
+
+    // Handle duplicate key error specifically
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: 'A contact with this phone number already exists'
+      });
+    }
+
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 const syncContacts = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -68,4 +114,22 @@ const searchContacts = async (req, res) => {
   }
 };
 
-module.exports = { getContacts, syncContacts, searchContacts };
+const checkContactExists = async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const contact = await Contact.findOne({
+      phone: phone,
+      userId: req.user.id
+    });
+
+    res.status(200).json({
+      exists: !!contact,
+      contact: contact || null
+    });
+  } catch (error) {
+    console.error('Error checking contact existence:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+module.exports = { getContacts, createContact, syncContacts, searchContacts, checkContactExists };

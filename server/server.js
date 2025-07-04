@@ -16,11 +16,6 @@ const cors = require("cors");
 
 const connectDB = require("./config/connectDB");
 
-if (!process.env.DATABASE_URL) {
-  console.error("Error: DATABASE_URL variables in .env missing.");
-  process.exit(-1);
-}
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -43,7 +38,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Database connection
 connectDB();
-
 
 app.on("error", (error) => {
   console.error(`Server error: ${error.message}`);

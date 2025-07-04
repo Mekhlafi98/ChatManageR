@@ -53,6 +53,7 @@ export const WhatsAppConnectionForm: React.FC<WhatsAppConnectionFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('WhatsAppConnectionForm: Form submitted with data:', formData);
     onSubmit(formData);
   };
 

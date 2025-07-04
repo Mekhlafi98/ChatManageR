@@ -13,7 +13,8 @@ async function refreshToken(req, res) {
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    const secret = process.env.REFRESH_TOKEN_SECRET || 'default-refresh-token-secret-change-in-production';
+    const decoded = jwt.verify(refreshToken, secret);
     const user = await User.findById(decoded.sub);
 
     if (!user) {

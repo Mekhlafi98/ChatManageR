@@ -1,5 +1,5 @@
 const WhatsAppConnection = require('../../models/WhatsAppConnection');
-const whatsappService = require('../../services/whatsappService');
+const wppconnectService = require('../../services/wppconnectService');
 
 const getWhatsAppConnections = async (req, res) => {
   try {
@@ -68,12 +68,19 @@ const connectWhatsAppConnection = async (req, res) => {
       return res.status(404).json({ message: 'Connection not found' });
     }
 
-    whatsappService.createClient(userId);
-    whatsappService.initializeClient(userId, io);
+    // Update connection status to connecting
+    await WhatsAppConnection.findByIdAndUpdate(connectionId, {
+      status: 'connecting',
+      sessionStatus: 'qr_required'
+    });
 
-    await WhatsAppConnection.findByIdAndUpdate(connectionId, { status: 'connecting' });
+    // Initialize WPPConnect client (QR code will be emitted via Socket.IO)
+    await wppconnectService.initializeClient(userId, io, connection.name);
 
-    res.status(200).json({ success: true, message: 'WhatsApp connection process started.' });
+    res.status(200).json({
+      success: true,
+      message: 'WhatsApp connection process started. QR code will be generated shortly.',
+    });
   } catch (error) {
     console.error('Error connecting WhatsApp connection:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -85,9 +92,17 @@ const disconnectWhatsAppConnection = async (req, res) => {
     const { connectionId } = req.params;
     const userId = req.user.id;
 
-    await whatsappService.destroyClient(userId);
+    const connection = await WhatsAppConnection.findOne({ _id: connectionId, userId });
+    if (!connection) {
+      return res.status(404).json({ message: 'Connection not found' });
+    }
 
-    await WhatsAppConnection.findByIdAndUpdate(connectionId, { status: 'disconnected' });
+    await wppconnectService.destroyClient(connection.name);
+
+    await WhatsAppConnection.findByIdAndUpdate(connectionId, {
+      status: 'disconnected',
+      sessionStatus: 'disconnected'
+    });
 
     res.status(200).json({ success: true, message: 'WhatsApp connection disconnected.' });
   } catch (error) {
@@ -126,6 +141,46 @@ const setActiveConnection = async (req, res) => {
   }
 };
 
+const handleWebhook = async (req, res) => {
+  try {
+    const { session, event, data } = req.body;
+    console.log('Webhook received:', { session, event, data });
+
+    // Handle different webhook events
+    switch (event) {
+      case 'onStateChange':
+        // Update connection status based on state
+        await WhatsAppConnection.findOneAndUpdate(
+          { name: session },
+          {
+            sessionStatus: data.state,
+            status: data.state === 'CONNECTED' ? 'connected' : 'disconnected'
+          }
+        );
+        break;
+
+      case 'onMessage':
+        // Handle incoming messages
+        console.log('New message received:', data);
+        // You can save messages to database here
+        break;
+
+      case 'onAck':
+        // Handle message acknowledgments
+        console.log('Message acknowledgment:', data);
+        break;
+
+      default:
+        console.log('Unhandled webhook event:', event);
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getWhatsAppConnections,
   createWhatsAppConnection,
@@ -133,5 +188,6 @@ module.exports = {
   connectWhatsAppConnection,
   disconnectWhatsAppConnection,
   deleteWhatsAppConnection,
-  setActiveConnection
+  setActiveConnection,
+  handleWebhook
 };
